@@ -1,0 +1,3 @@
+pywinpty
+pyte
+PyQt6
