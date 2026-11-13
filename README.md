@@ -12,9 +12,14 @@ No API keys and no extra subscription: it runs on the Claude Code login you alre
 
 - Windows 10/11
 - [Claude Code](https://code.claude.com) installed and signed in, with `/voice` working (run `claude`, type `/voice`, hold Space)
-- Python 3.11+
+- Python 3.11+ (only to run from source)
 
 ## Run
+
+Download `Bolo.exe` from [Releases](https://github.com/vampirepapi/bolo/releases) and run it. Windows SmartScreen
+may warn because the exe isn't code-signed: choose **More info → Run anyway**.
+
+Or from source:
 
 ```sh
 pip install -r requirements.txt

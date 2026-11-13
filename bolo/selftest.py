@@ -1,5 +1,6 @@
 """Mic-free checks: python app.py --selftest. Unit checks first, then the hidden Claude session end to end.
 BOLO_SELFTEST_LANGUAGE=hindi runs the session part with that dictation language."""
+import ctypes
 import json
 import os
 import shutil
@@ -75,14 +76,16 @@ def unit_checks(qapp):
     hk.paused, hk.recording = False, True
     assert hk._key(0x41, True) is True and got[-1] == 0x41 and not hk.recording
     # The capsule must never take focus: that would end live typing.
-    before = user32.GetForegroundWindow()
     capsule = Capsule()
     for state in ("opening", "listening", "finishing", "message"):
         capsule.show_state(state, text="abhi main hindi mein", badge=True)
         qapp.processEvents()
     capsule.update_live("abhi main hindi mein bol raha hoon", [1, 3, 5, 7, 2])
     qapp.processEvents()
-    assert user32.GetForegroundWindow() == before, "the capsule took focus"
+    # Not "unchanged": Windows may move focus by itself while a slow-starting Bolo.exe launches.
+    owner = ctypes.c_ulong()
+    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(owner))
+    assert owner.value != os.getpid(), "the capsule took focus"
     assert capsule.testAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
     capsule.hide()
     shutil.rmtree(tmp, ignore_errors=True)

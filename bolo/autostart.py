@@ -9,6 +9,8 @@ NAME = "Bolo"
 
 def command():
     exe = Path(sys.executable)
+    if getattr(sys, "frozen", False):  # Bolo.exe built by PyInstaller
+        return f'"{exe}"'
     pythonw = exe.with_name("pythonw.exe")  # no console window at login
     launcher = Path(__file__).resolve().parent.parent / "app.py"
     return f'"{pythonw if pythonw.exists() else exe}" "{launcher}"'

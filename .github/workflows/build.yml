@@ -1,0 +1,48 @@
+# Builds Bolo.exe on every push to main (download it from the run's Artifacts),
+# and attaches it to a GitHub Release when a version tag is pushed: git tag v0.2.0 && git push origin v0.2.0
+name: Build Windows exe
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # only the release step needs it
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt pyinstaller
+
+      # The full self-test also drives a hidden Claude Code session, which this runner doesn't have.
+      - name: Unit checks
+        run: python -c "from PyQt6.QtWidgets import QApplication; from bolo.selftest import unit_checks; unit_checks(QApplication([]))"
+
+      - name: Icon
+        run: python -c "from PyQt6.QtGui import QGuiApplication; app = QGuiApplication([]); from bolo.ui.theme import logo_icon; assert logo_icon(size=256).pixmap(256, 256).save('Bolo.ico')"
+
+      # --collect-all winpty: the hidden terminal needs OpenConsole.exe and winpty-agent.exe, which PyInstaller skips.
+      - name: Build Bolo.exe
+        run: pyinstaller --noconfirm --onefile --windowed --name Bolo --icon Bolo.ico --collect-all winpty app.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bolo
+          path: dist/Bolo.exe
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh release create "$env:GITHUB_REF_NAME" dist/Bolo.exe --title "Bolo $env:GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
