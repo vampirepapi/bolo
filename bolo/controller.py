@@ -268,6 +268,7 @@ class App(QObject):
     def transcribed(self, text):
         """Claude's final text replaces the live one (only the differing tail is retyped)."""
         final = re.sub(r"\s+", " ", text).strip()
+        source = final if self.settings["hinglish"] and DEVANAGARI.search(final) else ""
         if final and self.settings["hinglish"]:
             final = hinglish(final, self.settings["words"])
         final = final or self.typed  # no final text: keep what was typed live
@@ -275,7 +276,7 @@ class App(QObject):
         self._reset_dictation()
         if not final:
             return
-        self.history.add(final)
+        self.history.add(final, source)
         if target and user32.GetForegroundWindow() == target:
             type_diff(typed, final + " ")  # trailing space so the next dictation doesn't run into this one
             log(f"typed {len(final)} characters")

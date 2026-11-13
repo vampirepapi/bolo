@@ -13,10 +13,15 @@ WORKSPACE, BIN, OUTBOX, LOG = LOCAL / "workspace", LOCAL / "bin", LOCAL / "outbo
 SETTINGS_FILE, HISTORY_FILE = LOCAL / "settings.json", LOCAL / "history.json"
 
 
+LOG_LIMIT = 1_000_000  # bytes; then log.txt becomes log.old.txt, so the two never pass about 2 MB
+
+
 def log(msg):
     line = f"{time.strftime('%H:%M:%S')} {msg}"
     print(line, flush=True) if sys.stdout else None
     try:
+        if LOG.exists() and LOG.stat().st_size > LOG_LIMIT:
+            os.replace(LOG, LOG.with_name("log.old.txt"))
         with open(LOG, "a", encoding="utf-8") as f:
             f.write(line + "\n")
     except OSError:

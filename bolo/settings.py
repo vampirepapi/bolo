@@ -1,7 +1,7 @@
 """User settings: a JSON file whose defaults match how Bolo first worked."""
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from .hinglish import HINGLISH_WORDS, LOANWORDS, WORDS_SEED, normalize
+from .hinglish import HINGLISH_WORDS, SEED_ADDITIONS, WORDS_SEED, normalize
 from .keys import TALK_KEYS
 from .util import SETTINGS_FILE, load_json, log, save_json
 
@@ -37,9 +37,12 @@ class Settings(QObject):
                 value = default
             self.data[key] = value
         self.data["words"] = {normalize(k): v for k, v in self.data["words"].items() if isinstance(v, str)}
-        if stored.get("words_seed", 1) < 2 and "words" in stored:
-            # New built-ins reach an existing list once; words the user changed or removed earlier stay as they are.
-            self.data["words"] = {**{k: v for k, v in LOANWORDS.items() if k not in self.data["words"]}, **self.data["words"]}
+        seed = stored.get("words_seed", 1)  # lists from before seeds existed are seed 1
+        seed = seed if isinstance(seed, int) else 1
+        if seed < WORDS_SEED and "words" in stored:
+            # Built-ins added since the list's seed reach it once; words the user changed or removed earlier stay as they are.
+            new = {k: v for s, words in SEED_ADDITIONS.items() if s > seed for k, v in words.items()}
+            self.data["words"] = {**{k: v for k, v in new.items() if k not in self.data["words"]}, **self.data["words"]}
             self.data["words_seed"] = WORDS_SEED
             self.save()
         vk = self.data["talk_key"].get("vk")

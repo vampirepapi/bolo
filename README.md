@@ -42,7 +42,8 @@ python app.py --selftest  # mic-free checks: settings, history, hook logic, caps
   language, capsule, sounds, start with Windows.
 - **Hinglish**: a live "try it" box and your own word list — fix a spelling once (ऑफिस → office)
   and it's typed your way every time.
-- **History**: the last 30 dictations, kept only on this PC, with copy and clear.
+- **History**: the last 30 dictations, kept only on this PC, with copy and clear. On a Hinglish dictation,
+  **Fix spelling** (✎) lists its Hindi words; correct one and Bolo types it your way from then on.
 - **Claude session**: status, restart, the log.
 
 The talk key is reserved for dictation while Bolo runs (pause it from the tray to use it normally).

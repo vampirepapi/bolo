@@ -11,13 +11,25 @@ from pathlib import Path
 import pyte
 from PyQt6.QtCore import QObject, Qt
 
-from .hinglish import hinglish
+from .hinglish import HINGLISH_WORDS, WORDS_SEED, hinglish, spellings
 from .history import MAX_ENTRIES, History
 from .keys import TALK_KEYS, VK_ESCAPE, Hotkey, user32
 from .session import Session
 from .settings import Settings
 from .ui.capsule import Capsule
 from .util import after
+
+
+# Hindi as Claude writes it -> what Bolo must type. Add a line whenever a spelling is fixed.
+HINGLISH_CORPUS = [
+    ("तो अभी ये वर्क कर रहा है, हम क्या इम्प्रूव कर सकते हैं इसमें?",
+     "to abhi ye work kar raha hai, ham kya improve kar sakte hain ismein?"),
+    ("मुझे ये चाहिए, उसके लिए बात करें", "mujhe ye chahiye, uske liye baat karein"),
+    ("हमें वीडियो में एरर दिख रहा है", "hamein video mein error dikh raha hai"),
+    ("क्या अभी ये वर्क कर रहा है? आई थिंक इट इज़ वर्किंग", "kya abhi ye work kar raha hai? I think it is working"),
+    ("वो आई थी", "woh aai thi"),
+    ("मैं हिंदी में बोल रहा हूँ", "main hindi mein bol raha hoon"),
+]
 
 
 def unit_checks(qapp):
@@ -50,10 +62,26 @@ def unit_checks(qapp):
     assert hinglish("क्या अभी ये वर्क कर रहा है? आई थिंक इट इज़ वर्किंग") == "kya abhi ye work kar raha hai? I think it is working"
     assert hinglish("वो आई थी") == "woh aai thi"
     assert hinglish("इज" + "़") == hinglish("ज़".join(["इ", ""])) == "is"  # ज़ as two codepoints or one
-    # An existing list (seed 1) gains the new built-ins once, keeping the user's own changes.
+    # Real dictations: each fixed spelling stays fixed.
+    for hindi, want in HINGLISH_CORPUS:
+        assert hinglish(hindi) == want, (hindi, hinglish(hindi), want)
+    # An existing list gains the built-ins added since its seed, once, keeping the user's own changes.
     (tmp / "seed1.json").write_text(json.dumps({"words": {"वर्क": "werk", "में": "mein"}}), encoding="utf-8")
     seeded = Settings(tmp / "seed1.json")
-    assert seeded["words"]["वर्क"] == "werk" and seeded["words"]["वर्किंग"] == "working" and seeded["words_seed"] == 2
+    assert seeded["words"]["वर्क"] == "werk" and seeded["words"]["वर्किंग"] == "working"
+    assert seeded["words"]["इम्प्रूव"] == "improve" and seeded["words_seed"] == WORDS_SEED
+    (tmp / "seed2.json").write_text(json.dumps({"words": {"इम्प्रूव": "improov"}, "words_seed": 2}), encoding="utf-8")
+    seeded = Settings(tmp / "seed2.json")
+    assert seeded["words"]["इम्प्रूव"] == "improov" and seeded["words"]["वीडियो"] == "video"
+    assert "वर्किंग" not in seeded["words"]  # seed-2 words the user removed don't come back
+    # History keeps the Hindi a dictation came from, so Fix spelling can list its words.
+    h.add("ham kya improve kar sakte hain ismein", "हम क्या इम्प्रूव कर सकते हैं इसमें")
+    h.add("hello")
+    h = History(tmp / "h.json")
+    assert "source" not in h.entries[0] and h.entries[1]["source"].startswith("हम")
+    assert spellings("हम हम इसमें", {"हम": "hum"}) == [("हम", "hum"), ("इसमें", "ismein")]
+    h.retext(h.entries[1], hinglish(h.entries[1]["source"], {**HINGLISH_WORDS, "हम": "hum"}))
+    assert History(tmp / "h.json").entries[1]["text"] == "hum kya improve kar sakte hain ismein"
     # A talk key is swallowed system-wide, so none may type text.
     assert not set(TALK_KEYS) & {0x20, 0x0D, 0x08, 0x09, VK_ESCAPE, 0x41, 0x30}
     # The hook's decisions, without installing the hook.

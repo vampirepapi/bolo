@@ -27,9 +27,18 @@ class History(QObject):
         stored = load_json(path, [])
         self.entries = [e for e in stored if isinstance(e, dict) and isinstance(e.get("text"), str)
                         and isinstance(e.get("time"), (int, float))][:MAX_ENTRIES] if isinstance(stored, list) else []
+        for e in self.entries:
+            if not isinstance(e.get("source", ""), str):
+                del e["source"]
 
-    def add(self, text):
-        self.entries = [{"time": time.time(), "text": text}] + self.entries[:MAX_ENTRIES - 1]
+    def add(self, text, source=""):
+        """`source`: the Devanagari Claude heard, when `text` is its Hinglish; lets a spelling be fixed later."""
+        entry = {"time": time.time(), "text": text, **({"source": source} if source else {})}
+        self.entries = [entry] + self.entries[:MAX_ENTRIES - 1]
+        self._save()
+
+    def retext(self, entry, text):
+        entry["text"] = text
         self._save()
 
     def clear(self):

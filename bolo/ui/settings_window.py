@@ -1,11 +1,11 @@
 """The Settings window: General, Hinglish, History, Claude session, About."""
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import (QButtonGroup, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+from PyQt6.QtWidgets import (QButtonGroup, QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import __version__, autostart
-from ..hinglish import hinglish, normalize
+from ..hinglish import hinglish, normalize, spellings
 from ..history import when
 from ..keys import TALK_KEYS, VK_ESCAPE
 from ..util import LOG
@@ -256,7 +256,9 @@ class SettingsWindow(QWidget):
 
     def _fill_words(self):
         while self.word_rows.count():
-            self.word_rows.takeAt(0).widget().deleteLater()
+            old = self.word_rows.takeAt(0).widget()
+            old.hide()
+            old.deleteLater()
         words = self.settings["words"]
         q = self.search.text().strip().lower()
         self.words_title.setText(f'Your words <span style="font-weight:500;color:{MUTED}">· {len(words)}</span>')
@@ -315,7 +317,9 @@ class SettingsWindow(QWidget):
 
     def _fill_history(self):
         while self.history_rows.count():
-            self.history_rows.takeAt(0).widget().deleteLater()
+            old = self.history_rows.takeAt(0).widget()
+            old.hide()  # deleteLater waits for the event loop; until then the old row would still paint
+            old.deleteLater()
         entries = self.history.entries
         self.clear_history.setEnabled(bool(entries))
         if not entries:
@@ -340,8 +344,63 @@ class SettingsWindow(QWidget):
             lay = QHBoxLayout(row)
             lay.setContentsMargins(18, 10, 10, 10)
             lay.addLayout(text, 1)
+            if entry.get("source"):
+                fix = QPushButton(objectName="icon")
+                fix.setIcon(icon("edit", MUTED, 18))
+                fix.setAccessibleName("Fix spelling")
+                fix.setToolTip("Fix spelling")
+                fix.setCursor(Qt.CursorShape.PointingHandCursor)
+                fix.clicked.connect(lambda _, e=entry: self.fix_spelling(e))
+                lay.addWidget(fix, 0, Qt.AlignmentFlag.AlignTop)
             lay.addWidget(copy, 0, Qt.AlignmentFlag.AlignTop)
             self.history_rows.addWidget(row)
+
+    def fix_spelling(self, entry):
+        """Each Hindi word of a dictation with how it was typed; a changed spelling joins the word list."""
+        dialog = QDialog(self, objectName="window")
+        dialog.setWindowTitle("Fix spelling")
+        dialog.setMinimumWidth(520)
+        col = QVBoxLayout(dialog)
+        col.setContentsMargins(28, 24, 28, 22)
+        col.setSpacing(12)
+        col.addWidget(label("Fix spelling", "h1"))
+        col.addWidget(label("Type a word the way you want it. Bolo remembers it for next time.", "lead", wrap=True))
+        box = QFrame(objectName="card")
+        grid = QGridLayout(box)
+        grid.setContentsMargins(18, 12, 18, 12)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(8)
+        grid.addWidget(label("HINDI", "section"), 0, 0)
+        grid.addWidget(label("TYPED AS", "section"), 0, 1)
+        fields = []
+        for i, (hi, typed) in enumerate(spellings(entry["source"], self.settings["words"]), 1):
+            word = QLabel(hi)
+            word.setStyleSheet("font-size: 16px;")
+            field = QLineEdit(typed)
+            field.setAccessibleName(f"How to type {hi}")
+            grid.addWidget(word, i, 0)
+            grid.addWidget(field, i, 1)
+            fields.append((hi, typed, field))
+        grid.setColumnStretch(1, 1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(box)
+        scroll.setMaximumHeight(420)
+        col.addWidget(scroll)
+        cancel, save = QPushButton("Cancel"), QPushButton("Save", objectName="primary")
+        cancel.clicked.connect(dialog.reject)
+        save.clicked.connect(dialog.accept)
+        save.setDefault(True)
+        col.addWidget(hbox(None, cancel, save))
+        if fields:
+            fields[0][2].setFocus()
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        changes = {hi: field.text().strip() for hi, typed, field in fields if field.text().strip() not in ("", typed)}
+        if changes:
+            self.settings.set("words", {**self.settings["words"], **changes})
+            self.history.retext(entry, hinglish(entry["source"], self.settings["words"]))
 
     # Claude session
 
